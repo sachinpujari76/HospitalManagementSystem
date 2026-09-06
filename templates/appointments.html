@@ -1,0 +1,489 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+
+    <meta charset="UTF-8">
+
+    <meta name="viewport"
+          content="width=device-width, initial-scale=1.0">
+
+    <title>Appointments - Hospital Management</title>
+
+    <style>
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            font-family: Arial, sans-serif;
+            background: #f3f6fb;
+            color: #1f2937;
+        }
+
+        .container {
+            width: 92%;
+            max-width: 1400px;
+            margin: 35px auto;
+        }
+
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 25px;
+        }
+
+        .header h1 {
+            color: #17365d;
+            font-size: 32px;
+        }
+
+        .dashboard-btn {
+            background: #2563eb;
+            color: white;
+            padding: 12px 22px;
+            text-decoration: none;
+            border-radius: 7px;
+        }
+
+        .card {
+            background: white;
+            padding: 30px;
+            border-radius: 15px;
+            margin-bottom: 25px;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.08);
+        }
+
+        h2 {
+            color: #2563eb;
+        }
+
+        .form-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 18px;
+        }
+
+        input,
+        select {
+            width: 100%;
+            padding: 13px;
+            border: 1px solid #d1d5db;
+            border-radius: 7px;
+            font-size: 15px;
+        }
+
+        .add-btn {
+            margin-top: 20px;
+            background: #16a34a;
+            color: white;
+            border: none;
+            padding: 13px 25px;
+            border-radius: 7px;
+            font-size: 16px;
+            cursor: pointer;
+        }
+
+        .add-btn:hover {
+            background: #15803d;
+        }
+
+        .table-container {
+            overflow-x: auto;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+
+        th {
+            background: #2563eb;
+            color: white;
+            padding: 14px;
+            text-align: left;
+            white-space: nowrap;
+        }
+
+        td {
+            padding: 13px;
+            border-bottom: 1px solid #ddd;
+            white-space: nowrap;
+        }
+
+        tr:hover {
+            background: #f8fafc;
+        }
+
+        .status {
+            padding: 6px 12px;
+            border-radius: 20px;
+            background: #fef3c7;
+            color: #92400e;
+        }
+
+        .action-btn {
+            padding: 7px 10px;
+            border-radius: 5px;
+            text-decoration: none;
+            color: white;
+            font-size: 13px;
+            margin-right: 4px;
+        }
+
+        .confirm {
+            background: #2563eb;
+        }
+
+        .complete {
+            background: #16a34a;
+        }
+
+        .cancel {
+            background: #dc2626;
+        }
+
+        .delete {
+            background: #991b1b;
+        }
+
+        .empty {
+            text-align: center;
+            padding: 25px;
+            color: #777;
+        }
+
+        @media(max-width: 700px) {
+
+            .form-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .header {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 15px;
+            }
+
+        }
+
+    </style>
+
+</head>
+
+<body>
+
+<div class="container">
+
+    <!-- HEADER -->
+
+    <div class="header">
+
+        <h1>📅 Appointment Management</h1>
+
+        <a href="{{ url_for('dashboard') }}"
+           class="dashboard-btn">
+
+            ← Dashboard
+
+        </a>
+
+    </div>
+
+
+    <!-- BOOK APPOINTMENT -->
+
+    <div class="card">
+
+        <h2>➕ Book New Appointment</h2>
+
+        <form method="POST"
+              action="{{ url_for('appointments') }}">
+
+            <div class="form-grid">
+
+
+                <!-- PATIENT -->
+
+                <select name="patient_id" required>
+
+                    <option value="">
+                        Select Patient
+                    </option>
+
+                    {% for patient in patients %}
+
+                    <option value="{{ patient.id }}">
+
+                        {{ patient.patient_name }}
+                        (ID: {{ patient.id }})
+
+                    </option>
+
+                    {% endfor %}
+
+                </select>
+
+
+                <!-- DOCTOR -->
+
+                <select name="doctor_id" required>
+
+                    <option value="">
+                        Select Doctor
+                    </option>
+
+                    {% for doctor in doctors %}
+
+                    <option value="{{ doctor.id }}">
+
+                        Dr. {{ doctor.doctor_name }}
+                        - {{ doctor.specialization }}
+
+                    </option>
+
+                    {% endfor %}
+
+                </select>
+
+
+                <!-- DATE -->
+
+                <input
+                    type="date"
+                    name="appointment_date"
+                    required
+                >
+
+
+                <!-- TIME -->
+
+                <input
+                    type="time"
+                    name="appointment_time"
+                    required
+                >
+
+
+                <!-- STATUS -->
+
+                <select name="status">
+
+                    <option value="Pending">
+                        Pending
+                    </option>
+
+                    <option value="Confirmed">
+                        Confirmed
+                    </option>
+
+                    <option value="Completed">
+                        Completed
+                    </option>
+
+                    <option value="Cancelled">
+                        Cancelled
+                    </option>
+
+                </select>
+
+            </div>
+
+
+            <button
+                type="submit"
+                class="add-btn">
+
+                ➕ Book Appointment
+
+            </button>
+
+        </form>
+
+    </div>
+
+
+    <!-- APPOINTMENT LIST -->
+
+    <div class="card">
+
+        <h2>📋 Appointment List</h2>
+
+        {% if appointments %}
+
+        <div class="table-container">
+
+            <table>
+
+                <thead>
+
+                    <tr>
+
+                        <th>ID</th>
+
+                        <th>Patient</th>
+
+                        <th>Doctor</th>
+
+                        <th>Specialization</th>
+
+                        <th>Date</th>
+
+                        <th>Time</th>
+
+                        <th>Status</th>
+
+                        <th>Actions</th>
+
+                    </tr>
+
+                </thead>
+
+
+                <tbody>
+
+                {% for appointment in appointments %}
+
+                    <tr>
+
+                        <td>
+                            {{ appointment.id }}
+                        </td>
+
+
+                        <td>
+                            {{ appointment.patient_name or "Unknown" }}
+                        </td>
+
+
+                        <td>
+                            Dr. {{ appointment.doctor_name or "Unknown" }}
+                        </td>
+
+
+                        <td>
+                            {{ appointment.specialization or "-" }}
+                        </td>
+
+
+                        <td>
+                            {{ appointment.appointment_date }}
+                        </td>
+
+
+                        <td>
+                            {{ appointment.appointment_time }}
+                        </td>
+
+
+                        <td>
+
+                            <span class="status">
+
+                                {{ appointment.status }}
+
+                            </span>
+
+                        </td>
+
+
+                        <td>
+
+                            {% if appointment.status != "Confirmed" %}
+
+                            <a
+                                href="{{ url_for(
+                                    'update_appointment_status',
+                                    id=appointment.id,
+                                    status='Confirmed'
+                                ) }}"
+                                class="action-btn confirm">
+
+                                Confirm
+
+                            </a>
+
+                            {% endif %}
+
+
+                            {% if appointment.status != "Completed" %}
+
+                            <a
+                                href="{{ url_for(
+                                    'update_appointment_status',
+                                    id=appointment.id,
+                                    status='Completed'
+                                ) }}"
+                                class="action-btn complete">
+
+                                Complete
+
+                            </a>
+
+                            {% endif %}
+
+
+                            {% if appointment.status != "Cancelled" %}
+
+                            <a
+                                href="{{ url_for(
+                                    'update_appointment_status',
+                                    id=appointment.id,
+                                    status='Cancelled'
+                                ) }}"
+                                class="action-btn cancel">
+
+                                Cancel
+
+                            </a>
+
+                            {% endif %}
+
+
+                            <a
+                                href="{{ url_for(
+                                    'delete_appointment',
+                                    id=appointment.id
+                                ) }}"
+                                class="action-btn delete"
+                                onclick="return confirm(
+                                    'Delete this appointment?'
+                                );">
+
+                                Delete
+
+                            </a>
+
+                        </td>
+
+                    </tr>
+
+                {% endfor %}
+
+                </tbody>
+
+            </table>
+
+        </div>
+
+        {% else %}
+
+        <div class="empty">
+
+            No appointments found.
+
+        </div>
+
+        {% endif %}
+
+    </div>
+
+</div>
+
+</body>
+
+</html>

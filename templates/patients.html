@@ -1,0 +1,454 @@
+<!-- <!DOCTYPE html>
+<html lang="en">
+
+<head>
+
+    <meta charset="UTF-8">
+
+    <meta name="viewport"
+          content="width=device-width, initial-scale=1.0">
+
+    <title>Patients - Hospital Management</title>
+
+    <link rel="stylesheet"
+          href="{{ url_for('static', filename='css/style.css') }}">
+
+    <style>
+
+        .page-container {
+            padding: 30px;
+        }
+
+        .top-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 25px;
+        }
+
+        .dashboard-btn {
+            background: #2563eb;
+            color: white;
+            padding: 12px 20px;
+            text-decoration: none;
+            border-radius: 8px;
+        }
+
+        .form-card,
+        .list-card {
+            background: white;
+            padding: 25px;
+            margin-top: 25px;
+            border-radius: 15px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.08);
+        }
+
+        .form-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+        }
+
+        input,
+        select {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid #d1d5db;
+            border-radius: 7px;
+            font-size: 15px;
+        }
+
+        .full {
+            grid-column: 1 / 3;
+        }
+
+        .add-btn {
+            margin-top: 20px;
+            padding: 12px 25px;
+            border: none;
+            border-radius: 7px;
+            background: #16a34a;
+            color: white;
+            font-size: 16px;
+            cursor: pointer;
+        }
+
+        .search-box {
+            margin-bottom: 20px;
+        }
+
+        .search-box input {
+            max-width: 400px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        th {
+            background: #2563eb;
+            color: white;
+            padding: 12px;
+            text-align: left;
+        }
+
+        td {
+            padding: 12px;
+            border-bottom: 1px solid #ddd;
+        }
+
+        .edit-btn {
+            background: #f59e0b;
+            color: white;
+            padding: 7px 12px;
+            text-decoration: none;
+            border-radius: 5px;
+            margin-right: 5px;
+        }
+
+        .delete-btn {
+            background: #dc2626;
+            color: white;
+            padding: 7px 12px;
+            text-decoration: none;
+            border-radius: 5px;
+        }
+
+        @media(max-width: 800px) {
+
+            .form-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .full {
+                grid-column: 1;
+            }
+
+            table {
+                font-size: 13px;
+            }
+
+        }
+
+    </style>
+
+</head>
+
+
+<body>
+
+<div class="page-container">
+
+
+    <!-- HEADER -->
+
+    <div class="top-header">
+
+        <div>
+
+            <h1>🏥 Patient Management</h1>
+
+            <p>
+                Manage hospital patients
+            </p>
+
+        </div>
+
+        <a href="{{ url_for('dashboard') }}"
+           class="dashboard-btn">
+
+            ← Dashboard
+
+        </a>
+
+    </div>
+
+
+    <!-- ADD PATIENT -->
+
+    <div class="form-card">
+
+        <h2>➕ Add New Patient</h2>
+
+        <br>
+
+        <form method="POST"
+              action="{{ url_for('patients') }}">
+
+            <div class="form-grid">
+
+
+                <input
+                    type="text"
+                    name="patient_name"
+                    placeholder="Patient Name"
+                    required
+                >
+
+
+                <input
+                    type="number"
+                    name="age"
+                    placeholder="Age"
+                    min="1"
+                    max="120"
+                    required
+                >
+
+
+                <select name="gender" required>
+
+                    <option value="">
+                        Select Gender
+                    </option>
+
+                    <option value="Male">
+                        Male
+                    </option>
+
+                    <option value="Female">
+                        Female
+                    </option>
+
+                    <option value="Other">
+                        Other
+                    </option>
+
+                </select>
+
+
+                <input
+                    type="text"
+                    name="phone"
+                    placeholder="Phone Number"
+                    required
+                >
+
+
+                <input
+                    type="email"
+                    name="email"
+                    placeholder="Email"
+                >
+
+
+                <input
+                    type="text"
+                    name="blood_group"
+                    placeholder="Blood Group"
+                >
+
+
+                <input
+                    type="text"
+                    name="disease"
+                    placeholder="Disease / Problem"
+                >
+
+
+                <input
+                    type="text"
+                    name="address"
+                    placeholder="Address"
+                    class="full"
+                >
+
+            </div>
+
+
+            <button type="submit"
+                    class="add-btn">
+
+                ➕ Add Patient
+
+            </button>
+
+        </form>
+
+    </div>
+
+
+    <!-- PATIENT LIST -->
+
+    <div class="list-card">
+
+        <h2>👥 Patient List</h2>
+
+        <br>
+
+
+        <!-- SEARCH -->
+
+        <div class="search-box">
+
+            <input
+                type="text"
+                id="patientSearch"
+                placeholder="🔍 Search patient by name..."
+                onkeyup="searchPatients()"
+            >
+
+        </div>
+
+
+        <!-- TABLE -->
+
+        <table>
+
+            <thead>
+
+                <tr>
+
+                    <th>ID</th>
+
+                    <th>Name</th>
+
+                    <th>Age</th>
+
+                    <th>Gender</th>
+
+                    <th>Phone</th>
+
+                    <th>Blood Group</th>
+
+                    <th>Disease</th>
+
+                    <th>Actions</th>
+
+                </tr>
+
+            </thead>
+
+
+            <tbody id="patientTable">
+
+                {% for patient in patients %}
+
+                <tr>
+
+                    <td>
+                        {{ patient.id }}
+                    </td>
+
+                    <td>
+                        {{ patient.patient_name }}
+                    </td>
+
+                    <td>
+                        {{ patient.age }}
+                    </td>
+
+                    <td>
+                        {{ patient.gender }}
+                    </td>
+
+                    <td>
+                        {{ patient.phone }}
+                    </td>
+
+                    <td>
+                        {{ patient.blood_group }}
+                    </td>
+
+                    <td>
+                        {{ patient.disease }}
+                    </td>
+
+                    <td>
+
+                        <a
+                            href="{{ url_for('edit_patient', id=patient.id) }}"
+                            class="edit-btn"
+                        >
+                            ✏️ Edit
+                        </a>
+
+
+                        <a
+                            href="{{ url_for('delete_patient', id=patient.id) }}"
+                            class="delete-btn"
+                            onclick="return confirm('Are you sure you want to delete this patient?')"
+                        >
+                            🗑️ Delete
+                        </a>
+
+                    </td>
+
+                </tr>
+
+                {% else %}
+
+                <tr>
+
+                    <td colspan="8"
+                        style="text-align:center;">
+
+                        No patients found.
+
+                    </td>
+
+                </tr>
+
+                {% endfor %}
+
+            </tbody>
+
+        </table>
+
+    </div>
+
+</div>
+
+
+<!-- SEARCH JAVASCRIPT -->
+
+<script>
+
+function searchPatients() {
+
+    let input =
+        document.getElementById("patientSearch");
+
+    let filter =
+        input.value.toLowerCase();
+
+    let table =
+        document.getElementById("patientTable");
+
+    let rows =
+        table.getElementsByTagName("tr");
+
+
+    for (let i = 0; i < rows.length; i++) {
+
+        let nameCell =
+            rows[i].getElementsByTagName("td")[1];
+
+        if (nameCell) {
+
+            let name =
+                nameCell.textContent.toLowerCase();
+
+            if (name.includes(filter)) {
+
+                rows[i].style.display = "";
+
+            } else {
+
+                rows[i].style.display = "none";
+
+            }
+
+        }
+
+    }
+
+}
+
+</script>
+
+
+</body>
+
+</html> -->

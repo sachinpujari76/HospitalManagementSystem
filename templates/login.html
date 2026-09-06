@@ -20,7 +20,11 @@
 
             <p>Admin Login</p>
 
-            <form action="/dashboard" method="GET">
+            {% if error %}
+                <p class="error">{{ error }}</p>
+            {% endif %}
+
+            <form method="POST">
 
                 <input
                     type="text"
