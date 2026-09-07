@@ -803,6 +803,304 @@ def delete_bill(id):
     return redirect(url_for("billing"))
 
 
+
+# ==========================================
+# PHARMACY MANAGEMENT
+# ==========================================
+
+@app.route("/pharmacy")
+def pharmacy():
+
+    if "username" not in session:
+        return redirect(url_for("home"))
+
+    db = get_db_connection()
+    cursor = db.cursor(dictionary=True)
+
+    # --------------------------------------
+    # GET PATIENTS
+    # --------------------------------------
+
+    cursor.execute("""
+        SELECT id, patient_name
+        FROM patients
+        ORDER BY patient_name ASC
+    """)
+
+    patients_data = cursor.fetchall()
+
+    # --------------------------------------
+    # GET MEDICINES
+    # --------------------------------------
+
+    cursor.execute("""
+        SELECT *
+        FROM medicines
+        ORDER BY id DESC
+    """)
+
+    medicines_data = cursor.fetchall()
+
+    # --------------------------------------
+    # GET DISPENSE HISTORY
+    # --------------------------------------
+
+    cursor.execute("""
+        SELECT
+            dh.id,
+            p.patient_name,
+            m.medicine_name,
+            dh.quantity,
+            dh.amount,
+            dh.dispense_date
+        FROM dispense_history dh
+        LEFT JOIN patients p
+            ON dh.patient_id = p.id
+        LEFT JOIN medicines m
+            ON dh.medicine_id = m.id
+        ORDER BY dh.id DESC
+    """)
+
+    dispense_history = cursor.fetchall()
+
+    cursor.close()
+    db.close()
+
+    return render_template(
+        "pharmacy.html",
+        patients=patients_data,
+        medicines=medicines_data,
+        dispense_history=dispense_history
+    )
+
+
+# ==========================================
+# ADD MEDICINE
+# ==========================================
+
+@app.route("/add-medicine", methods=["POST"])
+def add_medicine():
+
+    if "username" not in session:
+        return redirect(url_for("home"))
+
+    medicine_name = request.form.get("medicine_name")
+    category = request.form.get("category")
+    stock_quantity = request.form.get("stock_quantity")
+    unit_price = request.form.get("unit_price")
+    expiry_date = request.form.get("expiry_date")
+    supplier = request.form.get("supplier")
+
+    db = get_db_connection()
+    cursor = db.cursor()
+
+    cursor.execute("""
+        INSERT INTO medicines
+        (
+            medicine_name,
+            category,
+            stock_quantity,
+            unit_price,
+            expiry_date,
+            supplier
+        )
+        VALUES (%s, %s, %s, %s, %s, %s)
+    """, (
+        medicine_name,
+        category,
+        stock_quantity,
+        unit_price,
+        expiry_date,
+        supplier
+    ))
+
+    db.commit()
+
+    cursor.close()
+    db.close()
+
+    return redirect(url_for("pharmacy"))
+
+
+# ==========================================
+# EDIT MEDICINE
+# ==========================================
+
+@app.route("/edit-medicine/<int:id>", methods=["GET", "POST"])
+def edit_medicine(id):
+
+    if "username" not in session:
+        return redirect(url_for("home"))
+
+    db = get_db_connection()
+    cursor = db.cursor(dictionary=True)
+
+    if request.method == "POST":
+
+        medicine_name = request.form.get("medicine_name")
+        category = request.form.get("category")
+        stock_quantity = request.form.get("stock_quantity")
+        unit_price = request.form.get("unit_price")
+        expiry_date = request.form.get("expiry_date")
+        supplier = request.form.get("supplier")
+
+        cursor.execute("""
+            UPDATE medicines
+            SET
+                medicine_name = %s,
+                category = %s,
+                stock_quantity = %s,
+                unit_price = %s,
+                expiry_date = %s,
+                supplier = %s
+            WHERE id = %s
+        """, (
+            medicine_name,
+            category,
+            stock_quantity,
+            unit_price,
+            expiry_date,
+            supplier,
+            id
+        ))
+
+        db.commit()
+
+        cursor.close()
+        db.close()
+
+        return redirect(url_for("pharmacy"))
+
+    cursor.execute("""
+        SELECT *
+        FROM medicines
+        WHERE id = %s
+    """, (id,))
+
+    medicine = cursor.fetchone()
+
+    cursor.close()
+    db.close()
+
+    if medicine is None:
+        return redirect(url_for("pharmacy"))
+
+    return render_template(
+        "edit_medicine.html",
+        medicine=medicine
+    )
+
+
+# ==========================================
+# DELETE MEDICINE
+# ==========================================
+
+@app.route("/delete-medicine/<int:id>")
+def delete_medicine(id):
+
+    if "username" not in session:
+        return redirect(url_for("home"))
+
+    db = get_db_connection()
+    cursor = db.cursor()
+
+    try:
+        cursor.execute("""
+            DELETE FROM medicines
+            WHERE id = %s
+        """, (id,))
+
+        db.commit()
+
+    except mysql.connector.Error as error:
+        db.rollback()
+        print("Error deleting medicine:", error)
+
+    finally:
+        cursor.close()
+        db.close()
+
+    return redirect(url_for("pharmacy"))
+
+
+# ==========================================
+# DISPENSE MEDICINE
+# ==========================================
+
+@app.route("/dispense-medicine", methods=["POST"])
+def dispense_medicine():
+
+    if "username" not in session:
+        return redirect(url_for("home"))
+
+    patient_id = request.form.get("patient_id")
+    medicine_id = request.form.get("medicine_id")
+
+    try:
+        quantity = int(request.form.get("quantity") or 0)
+    except ValueError:
+        quantity = 0
+
+    if not patient_id or not medicine_id or quantity <= 0:
+        return redirect(url_for("pharmacy"))
+
+    db = get_db_connection()
+    cursor = db.cursor(dictionary=True)
+
+    try:
+        cursor.execute("""
+            SELECT *
+            FROM medicines
+            WHERE id = %s
+        """, (medicine_id,))
+
+        medicine = cursor.fetchone()
+
+        if medicine is None:
+            return redirect(url_for("pharmacy"))
+
+        if medicine["stock_quantity"] < quantity:
+            return redirect(url_for("pharmacy"))
+
+        amount = float(medicine["unit_price"]) * quantity
+
+        # Reduce medicine stock
+        cursor.execute("""
+            UPDATE medicines
+            SET stock_quantity = stock_quantity - %s
+            WHERE id = %s
+        """, (quantity, medicine_id))
+
+        # Save dispense history
+        cursor.execute("""
+            INSERT INTO dispense_history
+            (
+                patient_id,
+                medicine_id,
+                quantity,
+                amount
+            )
+            VALUES (%s, %s, %s, %s)
+        """, (
+            patient_id,
+            medicine_id,
+            quantity,
+            amount
+        ))
+
+        db.commit()
+
+    except mysql.connector.Error as error:
+        db.rollback()
+        print("Error dispensing medicine:", error)
+
+    finally:
+        cursor.close()
+        db.close()
+
+    return redirect(url_for("pharmacy"))
+
+
 # ==========================================
 # LOGOUT
 # ==========================================
