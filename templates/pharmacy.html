@@ -307,15 +307,6 @@
                         required>
                 </div>
 
-                <div>
-                    <label>Supplier</label>
-
-                    <input
-                        type="text"
-                        name="supplier"
-                        placeholder="Enter supplier name">
-                </div>
-
             </div>
 
             <button type="submit" class="btn">
@@ -382,7 +373,7 @@
                         <option
                             value="{{ medicine.id }}"
                             data-stock="{{ medicine.stock_quantity }}"
-                            data-price="{{ medicine.unit_price }}">
+                            data-price="{{ medicine.price }}">
 
                             {{ medicine.medicine_name }}
                             (Available: {{ medicine.stock_quantity }})
@@ -485,7 +476,6 @@
                         <th>Stock</th>
                         <th>Unit Price</th>
                         <th>Expiry Date</th>
-                        <th>Supplier</th>
                         <th>Status</th>
                         <th>Action</th>
 
@@ -521,15 +511,11 @@
                         </td>
 
                         <td>
-                            ₹{{ medicine.unit_price }}
+                            ₹{{ medicine.price }}
                         </td>
 
                         <td>
                             {{ medicine.expiry_date }}
-                        </td>
-
-                        <td>
-                            {{ medicine.supplier or '-' }}
                         </td>
 
                         <td>
@@ -585,7 +571,7 @@
                     <tr>
 
                         <td
-                            colspan="9"
+                            colspan="8"
                             style="text-align:center;">
 
                             No medicines available.

@@ -886,35 +886,42 @@ def add_medicine():
 
     medicine_name = request.form.get("medicine_name")
     category = request.form.get("category")
-    stock_quantity = request.form.get("stock_quantity")
-    unit_price = request.form.get("unit_price")
+    stock_quantity = request.form.get("stock_quantity") or 0
+    unit_price = request.form.get("unit_price") or 0
     expiry_date = request.form.get("expiry_date")
-    supplier = request.form.get("supplier")
 
     db = get_db_connection()
     cursor = db.cursor()
 
-    cursor.execute("""
-        INSERT INTO medicines
-        (
+    try:
+        cursor.execute("""
+            INSERT INTO medicines
+            (
+                medicine_name,
+                price,
+                quantity,
+                expiry_date,
+                category,
+                stock_quantity
+            )
+            VALUES (%s, %s, %s, %s, %s, %s)
+        """, (
             medicine_name,
-            category,
-            stock_quantity,
             unit_price,
+            stock_quantity,
             expiry_date,
-            supplier
-        )
-        VALUES (%s, %s, %s, %s, %s, %s)
-    """, (
-        medicine_name,
-        category,
-        stock_quantity,
-        unit_price,
-        expiry_date,
-        supplier
-    ))
+            category,
+            stock_quantity
+        ))
 
-    db.commit()
+        db.commit()
+
+    except mysql.connector.Error as error:
+        db.rollback()
+        print("Error adding medicine:", error)
+        cursor.close()
+        db.close()
+        return f"Error adding medicine: {error}", 500
 
     cursor.close()
     db.close()
@@ -939,32 +946,39 @@ def edit_medicine(id):
 
         medicine_name = request.form.get("medicine_name")
         category = request.form.get("category")
-        stock_quantity = request.form.get("stock_quantity")
-        unit_price = request.form.get("unit_price")
+        stock_quantity = request.form.get("stock_quantity") or 0
+        unit_price = request.form.get("unit_price") or 0
         expiry_date = request.form.get("expiry_date")
-        supplier = request.form.get("supplier")
 
-        cursor.execute("""
-            UPDATE medicines
-            SET
-                medicine_name = %s,
-                category = %s,
-                stock_quantity = %s,
-                unit_price = %s,
-                expiry_date = %s,
-                supplier = %s
-            WHERE id = %s
-        """, (
-            medicine_name,
-            category,
-            stock_quantity,
-            unit_price,
-            expiry_date,
-            supplier,
-            id
-        ))
+        try:
+            cursor.execute("""
+                UPDATE medicines
+                SET
+                    medicine_name = %s,
+                    price = %s,
+                    quantity = %s,
+                    expiry_date = %s,
+                    category = %s,
+                    stock_quantity = %s
+                WHERE id = %s
+            """, (
+                medicine_name,
+                unit_price,
+                stock_quantity,
+                expiry_date,
+                category,
+                stock_quantity,
+                id
+            ))
 
-        db.commit()
+            db.commit()
+
+        except mysql.connector.Error as error:
+            db.rollback()
+            print("Error editing medicine:", error)
+            cursor.close()
+            db.close()
+            return f"Error editing medicine: {error}", 500
 
         cursor.close()
         db.close()
@@ -1062,14 +1076,16 @@ def dispense_medicine():
         if medicine["stock_quantity"] < quantity:
             return redirect(url_for("pharmacy"))
 
-        amount = float(medicine["unit_price"]) * quantity
+        amount = float(medicine["price"]) * quantity
 
         # Reduce medicine stock
         cursor.execute("""
             UPDATE medicines
-            SET stock_quantity = stock_quantity - %s
+            SET
+                stock_quantity = stock_quantity - %s,
+                quantity = quantity - %s
             WHERE id = %s
-        """, (quantity, medicine_id))
+        """, (quantity, quantity, medicine_id))
 
         # Save dispense history
         cursor.execute("""
@@ -1101,6 +1117,299 @@ def dispense_medicine():
     return redirect(url_for("pharmacy"))
 
 
+# ==========================================
+# LABORATORY MANAGEMENT
+# ==========================================
+
+@app.route("/laboratory", methods=["GET", "POST"])
+def laboratory():
+
+    if "username" not in session:
+        return redirect(url_for("home"))
+
+    db = get_db_connection()
+    cursor = db.cursor(dictionary=True)
+
+    try:
+        if request.method == "POST":
+            patient_id = request.form.get("patient_id")
+            test_name = request.form.get("test_name")
+            test_result = request.form.get("test_result")
+            test_date = request.form.get("test_date")
+
+            cursor.execute("""
+                INSERT INTO lab_tests
+                (patient_id, test_name, test_result, test_date)
+                VALUES (%s, %s, %s, %s)
+            """, (patient_id, test_name, test_result, test_date))
+
+            db.commit()
+            return redirect(url_for("laboratory"))
+
+        cursor.execute("""
+            SELECT id, patient_name
+            FROM patients
+            ORDER BY patient_name ASC
+        """)
+        patients = cursor.fetchall()
+
+        cursor.execute("""
+            SELECT
+                l.id, l.patient_id, p.patient_name,
+                l.test_name, l.test_result, l.test_date
+            FROM lab_tests l
+            LEFT JOIN patients p ON l.patient_id = p.id
+            ORDER BY l.id DESC
+        """)
+        tests = cursor.fetchall()
+
+        return render_template("laboratory.html", patients=patients, tests=tests)
+
+    except mysql.connector.Error as error:
+        db.rollback()
+        print("Laboratory error:", error)
+        return f"Laboratory database error: {error}", 500
+
+    finally:
+        cursor.close()
+        db.close()
+
+
+# ==========================================
+# DELETE LAB TEST
+# ==========================================
+
+@app.route("/delete-lab-test/<int:id>")
+def delete_lab_test(id):
+
+    if "username" not in session:
+        return redirect(url_for("home"))
+
+    db = get_db_connection()
+    cursor = db.cursor()
+
+    try:
+        cursor.execute("DELETE FROM lab_tests WHERE id = %s", (id,))
+        db.commit()
+    except mysql.connector.Error as error:
+        db.rollback()
+        print("Error deleting lab test:", error)
+    finally:
+        cursor.close()
+        db.close()
+
+    return redirect(url_for("laboratory"))
+
+
+# ==========================================
+# ROOMS & BEDS MANAGEMENT
+# ==========================================
+
+@app.route("/rooms", methods=["GET", "POST"])
+def rooms():
+
+    if "username" not in session:
+        return redirect(url_for("home"))
+
+    db = get_db_connection()
+    cursor = db.cursor(dictionary=True)
+
+    try:
+        if request.method == "POST":
+            room_number = request.form.get("room_number")
+            room_type = request.form.get("room_type")
+            bed_number = request.form.get("bed_number")
+            status = request.form.get("status") or "Available"
+            charge_per_day = request.form.get("charge_per_day") or 0
+
+            cursor.execute("""
+                INSERT INTO rooms
+                (room_number, room_type, bed_number, status, charge_per_day)
+                VALUES (%s, %s, %s, %s, %s)
+            """, (room_number, room_type, bed_number, status, charge_per_day))
+
+            db.commit()
+            return redirect(url_for("rooms"))
+
+        cursor.execute("""
+            SELECT id, room_number, room_type, bed_number, status, charge_per_day
+            FROM rooms
+            ORDER BY id DESC
+        """)
+        rooms_data = cursor.fetchall()
+
+        return render_template("rooms.html", rooms=rooms_data)
+
+    except mysql.connector.Error as error:
+        db.rollback()
+        print("Rooms database error:", error)
+        return f"Rooms database error: {error}", 500
+
+    finally:
+        cursor.close()
+        db.close()
+
+
+# ==========================================
+# UPDATE ROOM STATUS
+# ==========================================
+
+@app.route("/update-room-status/<int:id>", methods=["POST"])
+def update_room_status(id):
+
+    if "username" not in session:
+        return redirect(url_for("home"))
+
+    status = request.form.get("status")
+    if status not in ["Available", "Occupied", "Maintenance"]:
+        return redirect(url_for("rooms"))
+
+    db = get_db_connection()
+    cursor = db.cursor()
+
+    try:
+        cursor.execute("UPDATE rooms SET status = %s WHERE id = %s", (status, id))
+        db.commit()
+    except mysql.connector.Error as error:
+        db.rollback()
+        print("Error updating room status:", error)
+    finally:
+        cursor.close()
+        db.close()
+
+    return redirect(url_for("rooms"))
+
+
+# ==========================================
+# DELETE ROOM
+# ==========================================
+
+@app.route("/delete-room/<int:id>")
+def delete_room(id):
+
+    if "username" not in session:
+        return redirect(url_for("home"))
+
+    db = get_db_connection()
+    cursor = db.cursor()
+
+    try:
+        cursor.execute("DELETE FROM rooms WHERE id = %s", (id,))
+        db.commit()
+    except mysql.connector.Error as error:
+        db.rollback()
+        print("Error deleting room:", error)
+    finally:
+        cursor.close()
+        db.close()
+
+    return redirect(url_for("rooms"))
+
+# ==========================================
+# STAFF MANAGEMENT
+# ==========================================
+
+@app.route("/staff", methods=["GET", "POST"])
+def staff():
+
+    if "username" not in session:
+        return redirect(url_for("home"))
+
+    db = get_db_connection()
+    cursor = db.cursor(dictionary=True)
+
+    try:
+
+        # ADD STAFF
+        if request.method == "POST":
+
+            staff_name = request.form.get("staff_name")
+            role = request.form.get("role")
+            phone = request.form.get("phone")
+            email = request.form.get("email")
+
+            cursor.execute("""
+                INSERT INTO staff
+                (staff_name, role, phone, email)
+                VALUES (%s, %s, %s, %s)
+            """, (
+                staff_name,
+                role,
+                phone,
+                email
+            ))
+
+            db.commit()
+
+            return redirect(url_for("staff"))
+
+        # GET STAFF LIST
+        cursor.execute("""
+            SELECT
+                id,
+                staff_name,
+                role,
+                phone,
+                email
+            FROM staff
+            ORDER BY id DESC
+        """)
+
+        staff_list = cursor.fetchall()
+
+        return render_template(
+            "staff.html",
+            staff_list=staff_list
+        )
+
+    except mysql.connector.Error as error:
+
+        db.rollback()
+
+        print("Staff Error:", error)
+
+        return f"Staff database error: {error}", 500
+
+    finally:
+
+        cursor.close()
+        db.close()
+
+
+# ==========================================
+# DELETE STAFF
+# ==========================================
+
+@app.route("/delete-staff/<int:id>")
+def delete_staff(id):
+
+    if "username" not in session:
+        return redirect(url_for("home"))
+
+    db = get_db_connection()
+    cursor = db.cursor()
+
+    try:
+
+        cursor.execute(
+            "DELETE FROM staff WHERE id = %s",
+            (id,)
+        )
+
+        db.commit()
+
+    except mysql.connector.Error as error:
+
+        db.rollback()
+
+        print("Delete Staff Error:", error)
+
+    finally:
+
+        cursor.close()
+        db.close()
+
+    return redirect(url_for("staff"))
 # ==========================================
 # LOGOUT
 # ==========================================
